@@ -1,0 +1,7 @@
+{
+  "name": "LightRacer-v2-Server",
+  "version": "0.0.0",
+  "dependencies": {
+    "nodejs-websocket": "1.2.1"
+  }
+}
