@@ -1,16 +1,16 @@
-var ws = require("nodejs-websocket");
+var settings = require('./settings.json');
+var Server = require('socket.io');
+var Client = require('./server/client.js');
 
-var server = ws.createServer(onConnection);
-server.listen(8001);
+var clientId = 0;
+var io = new Server(settings.port);
 
-function onConnection(conn) {
-    conn.sendText("Hello");
+io.on('connection', listen);
 
-    conn.on("text", function (str) {
-        console.log("Received " + str);
-        conn.sendText(str.toUpperCase() + "!!!");
+function listen(socket) {
+    var client = new Client(socket, ++clientId);
+    client.on('disconnect', function () {
+        console.log('client disconnected');
     });
-    conn.on("close", function (code, reason) {
-        console.log("Connection closed")
-    });
+    client.spawnPlayer();
 }
