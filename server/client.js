@@ -8,15 +8,17 @@ util.inherits(Client, EventEmitter);
 function Client(socket, id) {
     this.id = id;
     this.socket = socket;
+    this.lobby = null;
 
-    socket.on(action.move, function (data) {
-        console.log(data)
+    /*socket.on(action.move, function (data) {
+        console.log(data);
     });
 
     var self = this;
+
     socket.on('disconnect', function () {
         self.emit('disconnect');
-    });
+    });*/
 }
 
 Client.prototype.spawnPlayer = function () {
