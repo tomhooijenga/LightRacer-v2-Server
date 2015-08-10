@@ -8,7 +8,7 @@ util.inherits(Client, EventEmitter);
 function Client(socket, id) {
     this.id = id;
     this.socket = socket;
-    this.lobby = null;
+    this.lobbyId = null;
 
     /*socket.on(action.move, function (data) {
         console.log(data);

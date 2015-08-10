@@ -1,47 +1,92 @@
 var settings = require('./settings.json');
 var Server = require('socket.io');
-var Client = require('./server/client.js');
 var Lobby = require('./server/lobby.js');
+var Player = require('./server/player.js');
 
-var clientId = 0;
-var lobbyId = 0;
 var io = new Server(settings.port);
+var players = [];
+var playerId = -1;
+var lobbyId = -1;
 var lobbies = [];
 
 io.on('connection', function (socket) {
-    var client = new Client(socket, socket.id);
+
+    var player = new Player(++playerId, socket);
+    players.push(player);
 
     socket.on('list', function () {
-        socket.emit('list', lobbies.filter(function (lobby) {
-            return lobby.players < settings.maxplayers;
-        }));
+        socket.emit('list', lobbies);
     });
 
     socket.on('create', function () {
         var lobby = new Lobby(++lobbyId);
 
-        // We joined
-        lobby.players = 1;
-        client.lobby = lobby.id;
-
         lobbies[lobbyId] = lobby;
 
-        socket.emit('create', lobby);
+        // Disconnect other game
+        leave();
+
+        lobby.players.push(player.id);
+        player.lobbyId = lobby.id;
+
+        socket.emit('create', true);
+    });
+
+    socket.on('join', function (_lobbyId) {
+        leave();
+
+        if (lobbies[_lobbyId])
+        {
+            lobbies[_lobbyId].players.push(player.id);
+            player.lobbyId = _lobbyId;
+
+            socket.emit('join', true);
+        }
+        else
+        {
+            socket.emit('list', lobbies);
+        }
+
+    });
+
+    socket.on('spawn', function () {
+        // Todo: note on map
+        player.spawn = lobbies[player.lobbyId].spawn(playerId);
+
+        // Send all spawns to all players in lobby
+        var lobbyPlayers = lobbies[player.lobbyId].players;
+
+        lobbyPlayers.forEach(function (id)
+        {
+            var socket = players[id].socket;
+
+            lobbyPlayers.forEach(function (_id)
+            {
+                socket.emit('spawn', players[_id].spawn);
+            });
+        });
     });
 
     socket.on('disconnect', function () {
-        console.log('client disconnected');
-    })
-});
+        delete players[player.id];
 
-/*
-function listen(socket) {
-    var client = new Client(socket, ++clientId);
-
-    client.on('disconnect', function () {
-        console.log('client disconnected');
+        leave();
     });
 
-    // TODO: Join lobby first
-    //client.spawnPlayer();
-}*/
+    function leave()
+    {
+        if (lobbies[player.lobbyId])
+        {
+            var players = lobbies[player.lobbyId].players;
+
+            players.splice(players.indexOf(player.id), 1);
+        }
+    }
+});
+
+// Clean up the lobbies each second
+setInterval(function () {
+    lobbies = lobbies.filter(function (lobby) {
+        return lobby.players.length > 0;
+    });
+}, 1000);
