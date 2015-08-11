@@ -15,7 +15,12 @@ io.on('connection', function (socket) {
     players.push(player);
 
     socket.on('list', function () {
-        socket.emit('list', lobbies);
+        socket.emit('list', lobbies.filter(function (lobby)
+        {
+            var length = lobby.players.length;
+
+            return length > 0 && length < settings.maxplayers;
+        }));
     });
 
     socket.on('create', function () {
@@ -42,11 +47,6 @@ io.on('connection', function (socket) {
 
             socket.emit('join', true);
         }
-        else
-        {
-            socket.emit('list', lobbies);
-        }
-
     });
 
     socket.on('spawn', function () {
@@ -65,6 +65,10 @@ io.on('connection', function (socket) {
                 socket.emit('spawn', players[_id].spawn);
             });
         });
+    });
+
+    socket.on('move', function () {
+
     });
 
     socket.on('disconnect', function () {
@@ -87,6 +91,16 @@ io.on('connection', function (socket) {
 // Clean up the lobbies each second
 setInterval(function () {
     lobbies = lobbies.filter(function (lobby) {
+
+        for (var i = 0; i < lobby.players.length; i++) {
+            var id = lobby.players[i];
+
+            if (!players[id])
+            {
+                lobby.players.splice(i, 1);
+            }
+        }
+
         return lobby.players.length > 0;
     });
 }, 1000);

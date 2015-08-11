@@ -14,10 +14,10 @@ var Lobby = function (id) {
      * @type {Array}
      */
     this.map = new Array(settings.game.size.x);
-    this.map.forEach(function (x)
-    {
-        x = new Array(settings.game.size.y);
-    });
+
+    for (var i = 0; i < settings.game.size.x; i++) {
+        this.map[i] = new Array(settings.game.size.y);
+    }
 
     // Blue, Green, Yellow, Red
     this.colors = ['#4A89DC', '#A0D468', '#F6BB42', '#DA4453'];
