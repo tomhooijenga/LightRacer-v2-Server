@@ -4,6 +4,8 @@ var Lobby = function (id) {
 
     this.id = id;
 
+    this.ready = 0;
+
     /**
      * @type {Array}
      */
@@ -18,6 +20,8 @@ var Lobby = function (id) {
     for (var i = 0; i < settings.game.size.x; i++) {
         this.map[i] = new Array(settings.game.size.y);
     }
+
+    this.worker = null;
 
     // Blue, Green, Yellow, Red
     this.colors = ['#4A89DC', '#A0D468', '#F6BB42', '#DA4453'];

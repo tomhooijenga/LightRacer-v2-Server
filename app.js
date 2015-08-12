@@ -1,4 +1,5 @@
 var settings = require('./settings.json');
+var cluster = require('cluster');
 var Server = require('socket.io');
 var Lobby = require('./server/lobby.js');
 var Player = require('./server/player.js');
@@ -9,17 +10,26 @@ var playerId = -1;
 var lobbyId = -1;
 var lobbies = [];
 
+// Will be openend in child thread
+cluster.settings.exec = './server/gameloop.js';
+
 io.on('connection', function (socket) {
 
     var player = new Player(++playerId, socket);
+
     players.push(player);
 
     socket.on('list', function () {
-        socket.emit('list', lobbies.filter(function (lobby)
-        {
+        socket.emit('list', lobbies.map(function (lobby) {
             var length = lobby.players.length;
 
-            return length > 0 && length < settings.maxplayers;
+            if (length > 0 && length < settings.maxplayers)
+            {
+                return {
+                    players: length,
+                    id: lobby.id
+                }
+            }
         }));
     });
 
@@ -67,8 +77,22 @@ io.on('connection', function (socket) {
         });
     });
 
-    socket.on('move', function () {
+    socket.on('ready', function () {
 
+        var lobby = lobbies[player.lobbyId],
+            ready = ++lobby.ready;
+
+        if (ready === settings.maxplayers)
+        {
+            // Create a game thread
+            cluster.fork().send({
+                lobby: lobby
+            });
+        }
+    });
+
+    socket.on('turn', function (data) {
+        //lobbies[player.lobbyId].worker.send('turn', data);
     });
 
     socket.on('disconnect', function () {
@@ -79,10 +103,16 @@ io.on('connection', function (socket) {
 
     function leave()
     {
-        if (lobbies[player.lobbyId])
-        {
-            var players = lobbies[player.lobbyId].players;
+        var lobby = lobbies[player.lobbyId];
 
+        if (lobby)
+        {
+            var players = lobby.players;
+
+            // Put color back in the mix
+            lobby.colors.push(player.spawn.color);
+
+            // Remove player from game
             players.splice(players.indexOf(player.id), 1);
         }
     }
@@ -90,10 +120,16 @@ io.on('connection', function (socket) {
 
 // Clean up the lobbies each second
 setInterval(function () {
-    lobbies = lobbies.filter(function (lobby) {
+    for (var i = 0; i < lobbies.length; i++) {
+        var lobby = lobbies[i];
 
-        for (var i = 0; i < lobby.players.length; i++) {
-            var id = lobby.players[i];
+        if (!lobby)
+        {
+            continue;
+        }
+
+        for (var j = 0; j < lobby.players.length; j++) {
+            var id = lobby.players[j];
 
             if (!players[id])
             {
@@ -101,6 +137,9 @@ setInterval(function () {
             }
         }
 
-        return lobby.players.length > 0;
-    });
+        if (lobby.players.length === 0)
+        {
+            delete lobbies[i];
+        }
+    }
 }, 1000);

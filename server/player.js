@@ -7,6 +7,8 @@ var Player = function (id, socket) {
     this.socket = socket;
 
     this.spawn = null;
+
+    this.crashed = false;
 };
 
 module.exports = Player;

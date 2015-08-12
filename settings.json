@@ -1,6 +1,6 @@
 {
   "port": 8001,
-  "maxplayers": 4,
+  "maxplayers": 1,
   "action": {
     "list": "list",
     "create": "create",
