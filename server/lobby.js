@@ -5,6 +5,13 @@ var settings = require('./../settings.json');
  * @param {number} id
  * @constructor
  */
+
+/**
+ * Calculate a spawn position for a player
+ *
+ * @param {number} playerId - the id of the player
+ * @returns {{position: *[], playerId: *, color: string, direction: *}}
+ */
 var Lobby = function (id) {
 
     /**
@@ -29,33 +36,27 @@ var Lobby = function (id) {
 
     /**
      * The available colors
-     * Purple, indigo, teal, orange
      * @type {string[]}
      */
-    this.colors = ['#9C27B0', '#3F51B5', '#009688', '#FF9800'];
+    this.colors = ['purple', 'indigo', 'teal', 'orange'];
 };
-
-/**
- * Calculate a spawn position for a player
- *
- * @param {number} playerId - the id of the player
- * @returns {{position: *[], playerId: *, color: string, direction: *}}
- */
 Lobby.prototype.spawn = function (playerId) {
     var x = Math.floor(200 + Math.random() * (settings.game.size.x - 400)),
         y = Math.floor(200 + Math.random() * (settings.game.size.y - 400)),
         direction = settings.game.directions[Math.floor(Math.random() * 4)],
-        color = this.colors.splice(Math.floor(Math.random() * this.colors.length), 1)[0];
+        color = Math.floor(Math.random() * this.colors.length);
 
-    // Create the spawn position with a 200px distance of the map edge
-
-    // Emit the spawn action to the client.
-    return {
+    var ret = {
         position: [x, y],
         playerId: playerId,
-        color: color,
+        color: this.colors[color],
         direction: direction
     };
+
+    // This color is no longer available
+    this.colors.splice(color, 1);
+
+    return ret;
 };
 
 module.exports = Lobby;

@@ -19,9 +19,23 @@ io.on('connection', function (socket) {
 
     players.push(player);
 
-    socket.on('list', function () {
-        socket.emit('list', list());
-    });
+    socket.on('list', list);
+
+    function list() {
+        emitAll(players.map(function (_player) {
+            return _player.id;
+        }), 'list', lobbies.map(function (lobby) {
+            var length = lobby.players.length;
+
+            // Not empty, not full, and not running
+            if (length > 0 && length < settings.maxplayers && lobby.worker === null) {
+                return {
+                    players: length,
+                    id: lobby.id
+                };
+            }
+        }));
+    }
 
     socket.on('create', function () {
         var lobby = new Lobby(++lobbyId);
@@ -31,32 +45,38 @@ io.on('connection', function (socket) {
         // Disconnect other game
         leave();
 
-        lobby.players.push(player.id);
-        player.lobbyId = lobby.id;
-
         socket.emit('create', true);
 
-        emitAll(players.map(function (_player) {
-            return _player.id;
-        }), 'list', list());
+        join(lobby);
+
+        list();
     });
 
     socket.on('join', function (_lobbyId) {
         leave();
 
-        if (lobbies[_lobbyId]) {
-            lobbies[_lobbyId].players.push(player.id);
-            player.lobbyId = _lobbyId;
+        join(lobbies[_lobbyId]);
 
-            socket.emit('join', true);
-
-            emitAll(players.map(function (_player) {
-                return _player.id;
-            }), 'list', list());
-        }
+        list();
     });
 
-    socket.on('spawn', function () {
+
+    function join (lobby)
+    {
+        // Add player to lobby
+        lobby.players.push(player.id);
+
+        // Add lobby to player
+        player.lobbyId = lobby.id;
+
+        socket.emit('join', true, player.id);
+
+        spawn();
+    }
+
+    socket.on('spawn', spawn);
+
+    function spawn() {
         var lobby = lobbies[player.lobbyId];
 
         player.spawn = lobby.spawn(player.id);
@@ -64,16 +84,47 @@ io.on('connection', function (socket) {
         lobby.players.forEach(function (id) {
             emitAll(lobby.players, 'spawn', players[id].spawn);
         });
+
+        colors(lobby);
+    }
+
+    socket.on('color', function (color) {
+        var lobby = lobbies[player.lobbyId],
+            _colors = lobby.colors;
+
+        // New color is no longer available
+        _colors.splice(_colors.indexOf(color), 1);
+
+        // Old color is back in the game
+        _colors.push(player.spawn.color);
+
+        player.spawn.color = color;
+
+        colors(lobby);
     });
 
-    socket.on('ready', function () {
+    function colors(lobby) {
+        var taken = {};
+        lobby.players.map(function (id)
+        {
+            taken[id] = players[id].spawn.color;
+        });
 
-        var lobby = lobbies[player.lobbyId],
-            ready = ++lobby.ready;
+        emitAll(lobby.players, 'color', lobby.colors, taken);
+    }
 
-        this.emit('ready', player.id);
+    socket.on('ready', function (status) {
 
-        if (ready === settings.maxplayers) {
+        var lobby = lobbies[player.lobbyId];
+
+        if (status) {
+            lobby.ready++;
+        }
+        else {
+            lobby.ready--;
+        }
+
+        if (lobby.ready === settings.maxplayers) {
             // Create a game thread
             var worker = cluster.fork();
 
@@ -122,9 +173,9 @@ io.on('connection', function (socket) {
         leave();
     });
 
-    /**
-     * Leave a lobby
-     */
+
+    socket.on('leave', leave);
+
     function leave() {
         var lobby = lobbies[player.lobbyId];
 
@@ -145,38 +196,19 @@ io.on('connection', function (socket) {
             }
         }
 
-        emitAll(players.map(function (_player) {
-            return _player.id;
-        }), 'list', list());
+        list();
     }
 
     /**
      * Emit an event to a list of players
-     * @param {Array} playersIds
+     * @param {Array} playerIds
      * @param {string} type
-     * @param [data]
+     * @param [data1]
+     * @param [data2]
      */
-    function emitAll(playersIds, type, data) {
-        playersIds.forEach(function (pl) {
-            players[pl].socket.emit(type, data);
-        });
-    }
-
-    /**
-     * Filter the lobbies list
-     * @returns {Array}
-     */
-    function list() {
-        return lobbies.map(function (lobby) {
-            var length = lobby.players.length;
-
-            // Not empty, not full, and not running
-            if (length > 0 && length < settings.maxplayers && lobby.worker === null) {
-                return {
-                    players: length,
-                    id: lobby.id
-                };
-            }
+    function emitAll(playerIds, type, data1, data2) {
+        playerIds.forEach(function (pl) {
+            players[pl].socket.emit(type, data1, data2);
         });
     }
 });

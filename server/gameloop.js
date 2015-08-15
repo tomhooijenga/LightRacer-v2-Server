@@ -93,21 +93,35 @@ Loop.setMaxAllowedFPS(30)
                 player.crashed = true;
             }
             else {
-                // Position was taken
-                if (map[x][y] !== undefined) {
-                    player.crashed = true;
-                }
-
                 // Determine start and end points
-                var a = dir ? y : x,
-                    b = dir ? oldY : oldX;
+                var a = dir ? oldY : oldX,
+                    b = dir ? y : x;
 
                 // Fill every spot between the old and new position
+                // Skip the old position, because that spot is taken in the last update
                 for (var i = Math.min(a, b); i <= Math.max(a, b); i++) {
+                    // up/down
                     if (dir) {
+                        // Spot is taken,
+                        if (map[x][i] !== undefined) {
+                            // but not by us in the last update
+                            if ((map[x][i] === player.id && i === oldY) === false) {
+                                player.crashed = true;
+                            }
+                        }
+
                         map[x][i] = player.id;
                     }
+                    // left/right
                     else {
+                        // Spot is taken,
+                        if (map[i][y] !== undefined) {
+                            // but not by us in the last update
+                            if ((map[i][y] === player.id && i === oldX) === false) {
+                                player.crashed = true;
+                            }
+                        }
+
                         map[i][y] = player.id;
                     }
                 }
