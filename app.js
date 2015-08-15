@@ -20,17 +20,7 @@ io.on('connection', function (socket) {
     players.push(player);
 
     socket.on('list', function () {
-        socket.emit('list', lobbies.map(function (lobby) {
-            var length = lobby.players.length;
-
-            if (length > 0 && length < settings.maxplayers)
-            {
-                return {
-                    players: length,
-                    id: lobby.id
-                }
-            }
-        }));
+        socket.emit('list', list());
     });
 
     socket.on('create', function () {
@@ -45,35 +35,34 @@ io.on('connection', function (socket) {
         player.lobbyId = lobby.id;
 
         socket.emit('create', true);
+
+        emitAll(players.map(function (_player) {
+            return _player.id;
+        }), 'list', list());
     });
 
     socket.on('join', function (_lobbyId) {
         leave();
 
-        if (lobbies[_lobbyId])
-        {
+        if (lobbies[_lobbyId]) {
             lobbies[_lobbyId].players.push(player.id);
             player.lobbyId = _lobbyId;
 
             socket.emit('join', true);
+
+            emitAll(players.map(function (_player) {
+                return _player.id;
+            }), 'list', list());
         }
     });
 
     socket.on('spawn', function () {
-        // Todo: note on map
-        player.spawn = lobbies[player.lobbyId].spawn(playerId);
+        var lobby = lobbies[player.lobbyId];
 
-        // Send all spawns to all players in lobby
-        var lobbyPlayers = lobbies[player.lobbyId].players;
+        player.spawn = lobby.spawn(player.id);
 
-        lobbyPlayers.forEach(function (id)
-        {
-            var socket = players[id].socket;
-
-            lobbyPlayers.forEach(function (_id)
-            {
-                socket.emit('spawn', players[_id].spawn);
-            });
+        lobby.players.forEach(function (id) {
+            emitAll(lobby.players, 'spawn', players[id].spawn);
         });
     });
 
@@ -82,17 +71,49 @@ io.on('connection', function (socket) {
         var lobby = lobbies[player.lobbyId],
             ready = ++lobby.ready;
 
-        if (ready === settings.maxplayers)
-        {
+        this.emit('ready', player.id);
+
+        if (ready === settings.maxplayers) {
             // Create a game thread
-            cluster.fork().send({
-                lobby: lobby
+            var worker = cluster.fork();
+
+            worker.send({
+                lobby: lobby,
+                // Just passing players throws circular reference error
+                // Probably because the socket
+                players: lobby.players.map(function (id) {
+                    var pl = players[id];
+
+                    return {
+                        id: pl.id,
+                        direction: pl.spawn.direction,
+                        position: pl.spawn.position,
+                        crashed: false
+                    };
+                })
+            });
+
+            lobby.worker = worker;
+
+            emitAll(lobby.players, 'start');
+
+            worker.on('message', function (data) {
+                if (data.type === 'move') {
+                    emitAll(lobby.players, 'move', data.players);
+                }
+                else if (data.type === 'endgame') {
+                    emitAll(lobby.players, 'endgame', data.winner);
+                }
             });
         }
     });
 
-    socket.on('turn', function (data) {
-        //lobbies[player.lobbyId].worker.send('turn', data);
+    socket.on('turn', function (direction) {
+        lobbies[player.lobbyId].worker.send({
+            type: 'turn',
+            direction: direction,
+            playerId: player.id
+        });
     });
 
     socket.on('disconnect', function () {
@@ -101,20 +122,62 @@ io.on('connection', function (socket) {
         leave();
     });
 
-    function leave()
-    {
+    /**
+     * Leave a lobby
+     */
+    function leave() {
         var lobby = lobbies[player.lobbyId];
 
-        if (lobby)
-        {
-            var players = lobby.players;
+        if (lobby) {
+            var _players = lobby.players;
 
             // Put color back in the mix
             lobby.colors.push(player.spawn.color);
 
             // Remove player from game
-            players.splice(players.indexOf(player.id), 1);
+            _players.splice(_players.indexOf(player.id), 1);
+
+            if (lobby.worker) {
+                lobby.worker.send({
+                    type: 'leave',
+                    data: player.id
+                });
+            }
         }
+
+        emitAll(players.map(function (_player) {
+            return _player.id;
+        }), 'list', list());
+    }
+
+    /**
+     * Emit an event to a list of players
+     * @param {Array} playersIds
+     * @param {string} type
+     * @param [data]
+     */
+    function emitAll(playersIds, type, data) {
+        playersIds.forEach(function (pl) {
+            players[pl].socket.emit(type, data);
+        });
+    }
+
+    /**
+     * Filter the lobbies list
+     * @returns {Array}
+     */
+    function list() {
+        return lobbies.map(function (lobby) {
+            var length = lobby.players.length;
+
+            // Not empty, not full, and not running
+            if (length > 0 && length < settings.maxplayers && lobby.worker === null) {
+                return {
+                    players: length,
+                    id: lobby.id
+                };
+            }
+        });
     }
 });
 
@@ -123,22 +186,19 @@ setInterval(function () {
     for (var i = 0; i < lobbies.length; i++) {
         var lobby = lobbies[i];
 
-        if (!lobby)
-        {
+        if (!lobby) {
             continue;
         }
 
         for (var j = 0; j < lobby.players.length; j++) {
             var id = lobby.players[j];
 
-            if (!players[id])
-            {
+            if (!players[id]) {
                 lobby.players.splice(i, 1);
             }
         }
 
-        if (lobby.players.length === 0)
-        {
+        if (lobby.players.length === 0) {
             delete lobbies[i];
         }
     }

@@ -1,32 +1,46 @@
 var settings = require('./../settings.json');
 
+/**
+ *
+ * @param {number} id
+ * @constructor
+ */
 var Lobby = function (id) {
 
+    /**
+     * @type {number} id - The id of the lobby
+     */
     this.id = id;
 
+    /**
+     * @type {number} ready - Number of players that are ready
+     */
     this.ready = 0;
 
     /**
-     * @type {Array}
+     * @type {Array} players - The players that are in this lobby
      */
     this.players = [];
 
     /**
-     * 2d array of 1000x1000
-     * @type {Array}
+     * Thread that runs the game loop
      */
-    this.map = new Array(settings.game.size.x);
-
-    for (var i = 0; i < settings.game.size.x; i++) {
-        this.map[i] = new Array(settings.game.size.y);
-    }
-
     this.worker = null;
 
-    // Blue, Green, Yellow, Red
-    this.colors = ['#4A89DC', '#A0D468', '#F6BB42', '#DA4453'];
+    /**
+     * The available colors
+     * Purple, indigo, teal, orange
+     * @type {string[]}
+     */
+    this.colors = ['#9C27B0', '#3F51B5', '#009688', '#FF9800'];
 };
 
+/**
+ * Calculate a spawn position for a player
+ *
+ * @param {number} playerId - the id of the player
+ * @returns {{position: *[], playerId: *, color: string, direction: *}}
+ */
 Lobby.prototype.spawn = function (playerId) {
     var x = Math.floor(200 + Math.random() * (settings.game.size.x - 400)),
         y = Math.floor(200 + Math.random() * (settings.game.size.y - 400)),
@@ -37,11 +51,10 @@ Lobby.prototype.spawn = function (playerId) {
 
     // Emit the spawn action to the client.
     return {
-        x: x,
-        y: y,
+        position: [x, y],
         playerId: playerId,
         color: color,
-        dir: direction
+        direction: direction
     };
 };
 
