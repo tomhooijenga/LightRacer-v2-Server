@@ -4,7 +4,7 @@ var Server = require('socket.io');
 var Lobby = require('./server/lobby.js');
 var Player = require('./server/player.js');
 
-var io = new Server(settings.port);
+var io = new Server(process.env.PORT || 8001);
 var players = [];
 var playerId = -1;
 var lobbyId = -1;

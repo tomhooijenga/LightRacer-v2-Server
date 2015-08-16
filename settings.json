@@ -1,5 +1,4 @@
 {
-  "port": 8001,
   "maxplayers": 2,
   "action": {
     "list": "list",
