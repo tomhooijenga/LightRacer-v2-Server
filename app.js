@@ -19,9 +19,14 @@ io.on('connection', function (socket) {
 
     players.push(player);
 
+    console.log('player connected: %d', player.id);
+
     socket.on('list', list);
 
     function list() {
+
+        console.log('listing games');
+
         emitAll(players.map(function (_player) {
             return _player.id;
         }), 'list', lobbies.map(function (lobby) {
@@ -38,6 +43,9 @@ io.on('connection', function (socket) {
     }
 
     socket.on('create', function () {
+
+        console.log('creating game');
+
         var lobby = new Lobby(++lobbyId);
 
         lobbies[lobbyId] = lobby;
@@ -53,6 +61,7 @@ io.on('connection', function (socket) {
     });
 
     socket.on('join', function (_lobbyId) {
+
         leave();
 
         join(lobbies[_lobbyId]);
@@ -63,6 +72,8 @@ io.on('connection', function (socket) {
 
     function join (lobby)
     {
+        console.log('player %d joined game %d', player.id, lobby.id);
+
         // Add player to lobby
         lobby.players.push(player.id);
 
@@ -125,6 +136,9 @@ io.on('connection', function (socket) {
         }
 
         if (lobby.ready === settings.maxplayers) {
+
+            console.log('starting game');
+
             // Create a game thread
             var worker = cluster.fork();
 
